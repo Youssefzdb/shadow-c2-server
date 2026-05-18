@@ -62,6 +62,21 @@ def init_db():
 
 init_db()
 
+# ── Migration: add progress_log column if not exists ──────────
+def migrate_db():
+    try:
+        with get_db() as db:
+            cols = [r[1] for r in db.execute("PRAGMA table_info(tasks)").fetchall()]
+            if "progress_log" not in cols:
+                db.execute("ALTER TABLE tasks ADD COLUMN progress_log TEXT DEFAULT ''")
+                print("[*] Migration: added progress_log column to tasks")
+            else:
+                print("[*] Migration: progress_log already exists")
+    except Exception as e:
+        print(f"[!] Migration error: {e}")
+
+migrate_db()
+
 # ── Self keep-alive: prevent Render free-tier sleep ────────────
 import threading as _ka_th, urllib.request as _ka_req
 
