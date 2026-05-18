@@ -53,8 +53,9 @@ def init_db():
             action    TEXT,
             args      TEXT DEFAULT '{}',
             status    TEXT DEFAULT 'pending',
-            result    TEXT DEFAULT '',
-            issued_at TEXT
+            result       TEXT DEFAULT '',
+            progress_log TEXT DEFAULT '',
+            issued_at    TEXT
         );
         """)
     print(f"[*] SQLite DB ready: {DB_PATH}")
@@ -810,8 +811,44 @@ def c2():
                 row = db.execute("SELECT * FROM tasks WHERE task_id=?", (task_id,)).fetchone()
                 if not row:
                     return jsonify({"error": "not found"}), 404
-                db.execute("UPDATE tasks SET result=?, status=? WHERE task_id=?",
-                           (body.get("result",""), body.get("status","done"), task_id))
+                result_val = body.get("result", "")
+                status_val = body.get("status", "done")
+                if status_val == "progress":
+                    # Append to progress_log (non-blocking live lines)
+                    existing = db.execute(
+                        "SELECT progress_log FROM tasks WHERE task_id=?", (task_id,)
+                    ).fetchone()
+                    prev    = (existing[0] or "") if existing else ""
+                    new_log = prev + result_val + "\n"
+                    db.execute(
+                        "UPDATE tasks SET progress_log=? WHERE task_id=?",
+                        (new_log, task_id)
+                    )
+                else:
+                    db.execute(
+                        "UPDATE tasks SET result=?, status=? WHERE task_id=?",
+                        (result_val, status_val, task_id)
+                    )
+            return jsonify({"ok": True})
+
+        # ── append_line: agent posts a single live log line ─────
+        if route == "append_line":
+            task_id = body.get("task_id")
+            line    = body.get("line", "")
+            if not task_id:
+                return jsonify({"error": "missing task_id"}), 400
+            with get_db() as db:
+                existing = db.execute(
+                    "SELECT progress_log FROM tasks WHERE task_id=?", (task_id,)
+                ).fetchone()
+                if not existing:
+                    return jsonify({"error": "not found"}), 404
+                prev    = (existing[0] or "")
+                new_log = prev + line + "\n"
+                db.execute(
+                    "UPDATE tasks SET progress_log=? WHERE task_id=?",
+                    (new_log, task_id)
+                )
             return jsonify({"ok": True})
 
         if route == "agents":
@@ -846,7 +883,14 @@ def c2():
                 row = db.execute("SELECT * FROM tasks WHERE task_id=?", (task_id,)).fetchone()
             if not row:
                 return jsonify({"error": "not found"}), 404
-            return jsonify(dict(row))
+            row_dict = dict(row)
+            # Fetch progress_log separately (for streaming)
+            with get_db() as db2:
+                prow = db2.execute(
+                    "SELECT progress_log FROM tasks WHERE task_id=?", (task_id,)
+                ).fetchone()
+                row_dict["progress_log"] = (prow[0] or "") if prow else ""
+            return jsonify(row_dict)
 
         if route == "delete_agent":
             agent_id = body.get("agent_id")
