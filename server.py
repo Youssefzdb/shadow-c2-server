@@ -336,29 +336,56 @@ socket.on('disconnect', () => {
   log('Disconnected', 'warn');
 });
 
-socket.on('frame', (data) => {
-  if (data.agent_id !== selectedAgent) return;
-  
+// ── renderFrame shared by WS and HTTP polling ────────────
+function renderFrame(data) {
   const img = new Image();
   img.onload = () => {
     origW = data.width || img.naturalWidth;
     origH = data.height || img.naturalHeight;
-    
     if (canvas.width !== origW || canvas.height !== origH) {
       canvas.width = origW;
       canvas.height = origH;
       updateScale();
     }
     ctx.drawImage(img, 0, 0);
-    
     frameCount++;
     document.getElementById('info-res').textContent = `${origW}x${origH}`;
-    
-    const now = Date.now();
-    document.getElementById('info-lat').textContent = `${now - data.ts}ms`;
+    if (data.ts) {
+      document.getElementById('info-lat').textContent = `${Date.now() - data.ts}ms`;
+    }
   };
   img.src = 'data:image/jpeg;base64,' + data.frame;
+}
+
+// WebSocket path
+socket.on('frame', (data) => {
+  if (!streaming || data.agent_id !== selectedAgent) return;
+  renderFrame(data);
 });
+
+// HTTP polling fallback (fires every 300ms)
+let _pollTimer = null;
+let _lastFrameTs = 0;
+
+function startPollFrames() {
+  if (_pollTimer) return;
+  _pollTimer = setInterval(async () => {
+    if (!streaming || !selectedAgent) return;
+    try {
+      const res = await fetch(`/live/frame/${selectedAgent}?key={{ secret }}`);
+      const d = await res.json();
+      if (d.frame && d.ts !== _lastFrameTs) {
+        _lastFrameTs = d.ts;
+        renderFrame(d);
+      }
+    } catch(e) {}
+  }, 300);
+}
+
+function stopPollFrames() {
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+  _lastFrameTs = 0;
+}
 
 socket.on('agents_list', (data) => {
   const sel = document.getElementById('agent-select');
