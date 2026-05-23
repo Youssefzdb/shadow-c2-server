@@ -10,7 +10,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get("FLASK_SECRET", "shadow_secret_2024")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet',
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent',
                     max_http_buffer_size=5 * 1024 * 1024)
 
 SECRET_KEY   = os.environ.get("C2_SECRET_KEY", "Sh4d0w_S33d_2026")
